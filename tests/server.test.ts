@@ -1,0 +1,22 @@
+import { afterEach, expect, it } from 'vitest';
+import { createServer } from '../packages/local-server/server';
+import { InventoryService } from '../packages/core/service';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+const cleanup: (() => Promise<unknown>)[] = [];
+afterEach(async () => { for(const fn of cleanup.splice(0)) await fn(); });
+it('requires a local host, same origin, and session token before reading local data', async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'atm-api-'));
+  const app = await createServer({ service: new InventoryService({ home }) });
+  cleanup.push(() => app.close(), () => fs.rm(home, { recursive: true, force: true }));
+  expect((await app.inject({ url: '/api/bootstrap', headers: { host: 'attacker.com' } })).statusCode).toBe(403);
+  expect((await app.inject({ url: '/api/bootstrap', headers: { host: 'localhost', origin: 'https://attacker.com' } })).statusCode).toBe(403);
+  expect((await app.inject({ method: 'POST', url: '/api/scan', headers: { host: 'localhost' }, payload: {} })).statusCode).toBe(401);
+  const bootstrap = await app.inject({ url: '/api/bootstrap', headers: { host: 'localhost' } });
+  const headers = { host: 'localhost', 'x-inventory-token': bootstrap.json().token };
+  const result = await app.inject({ method: 'POST', url: '/api/scan', headers, payload: {} });
+  expect(result.statusCode).toBe(200); expect(result.json().agents).toHaveLength(2);
+  const invalid = await app.inject({ method: 'POST', url: '/api/scan', headers, payload: { project: 12 } });
+  expect(invalid.statusCode).toBe(400);
+});

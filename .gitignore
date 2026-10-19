@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+.artifacts/
+test-results/
+playwright-report/
+.DS_Store
+
+# Local secrets and generated icon intermediates
+.env
+.env.*
+!.env.example
+*.log
+build/icon.iconset/
