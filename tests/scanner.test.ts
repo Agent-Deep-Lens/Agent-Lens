@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { scanInventory } from '../packages/core/scanner';
 import { redact } from '../packages/core/files';
+import { isMessage, message } from '../packages/contracts/messages';
 let home: string; let project: string;
 async function file(relative: string, content: string | object) { const target = path.join(home, relative); await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, typeof content === 'string' ? content : JSON.stringify(content)); return target; }
 const skill = (name: string, description = 'Test description') => `---\nname: ${name}\ndescription: ${description}\n---\n# Instructions\nRead the project first.`;
@@ -21,6 +22,8 @@ describe('mixed Agent inventory', () => {
     expect(snapshot.resources.filter(r => r.kind === 'subagent').map(r => r.name)).toEqual(['reviewer', 'tester']);
     expect(snapshot.resources.find(r => r.name === 'global')?.bindings[0].scope).toBe('user');
     expect(snapshot.agents.map(a => a.id)).toEqual(['claude', 'codex']);
+    expect(snapshot.resources.every(r => r.bindings.every(b => isMessage(b.reason)))).toBe(true);
+    expect(snapshot.resources.find(r => r.name === 'global')?.bindings[0].reason).toEqual(message('reason.standardDiscovery'));
   });
   it('merges symlinked resources while preserving independent agent bindings', async () => {
     const target = await file('shared/review/SKILL.md', skill('shared'));
@@ -47,6 +50,7 @@ describe('mixed Agent inventory', () => {
     expect(snapshot.resources).toHaveLength(4);
     expect(snapshot.resources.every(r => r.bindings[0].status === 'disabled')).toBe(true);
     expect(snapshot.resources.filter(r => r.kind !== 'plugin').every(r => !!r.bindings[0].plugin)).toBe(true);
+    expect(snapshot.resources.find(r => r.kind === 'plugin')?.bindings[0].reason).toEqual(message('reason.pluginDisabledWithChildren'));
   });
   it('reports broken configs without losing the other agent and never exposes credentials', async () => {
     await file('project/.claude/settings.json', '{broken json');
@@ -54,6 +58,7 @@ describe('mixed Agent inventory', () => {
     await file('project/.agents/skills/test/SKILL.md', skill('test'));
     const { snapshot } = await scanInventory({ home, project });
     expect(snapshot.diagnostics).toHaveLength(1);
+    expect(snapshot.diagnostics[0].message).toEqual(message('scan.configUnreadable'));
     expect(snapshot.resources.find(r => r.name === 'test')).toBeDefined();
     expect(JSON.stringify(snapshot)).not.toContain('super-secret');
     expect(JSON.stringify(snapshot)).not.toContain('private-value');
@@ -66,7 +71,9 @@ describe('mixed Agent inventory', () => {
     await file('project/node_modules/ignored/.agents/skills/hidden/SKILL.md', skill('hidden'));
     const { snapshot } = await scanInventory({ home, project });
     expect(snapshot.resources.find(r => r.name === 'local-plugin')?.bindings[0].status).toBe('conditional');
+    expect(snapshot.resources.find(r => r.name === 'local-plugin')?.bindings[0].reason).toEqual(message('reason.projectPluginSource'));
     expect(snapshot.resources.find(r => r.name === 'nested')?.bindings[0].appliesTo).toBe(await fs.realpath(path.join(project, 'apps/web')));
+    expect(snapshot.resources.find(r => r.name === 'nested')?.bindings[0].reason).toEqual(message('reason.nestedDefinition'));
     expect(snapshot.resources.find(r => r.name === 'hidden')).toBeUndefined();
   });
   it('reads repository ancestor definitions and marks Claude personal precedence', async () => {
@@ -77,6 +84,7 @@ describe('mixed Agent inventory', () => {
     const { snapshot } = await scanInventory({ home, project: sub });
     expect(snapshot.resources.find(r => r.name === 'root')).toBeDefined();
     expect(snapshot.resources.find(r => r.name === 'review' && r.bindings[0].scope === 'project')?.bindings[0].status).toBe('shadowed');
+    expect(snapshot.resources.find(r => r.name === 'review' && r.bindings[0].scope === 'project')?.bindings[0].reason).toEqual(message('reason.personalPrecedence'));
   });
   it('honors Codex custom skill paths and disabled plugin configuration', async () => {
     await file('.codex/config.toml', '[plugins."docs@team"]\nenabled=false');
@@ -85,6 +93,31 @@ describe('mixed Agent inventory', () => {
     const { snapshot } = await scanInventory({ home });
     expect(snapshot.resources.map(r => r.name)).toEqual(['docs', 'write']);
     expect(snapshot.resources.every(r => r.bindings[0].status === 'disabled')).toBe(true);
+    expect(snapshot.resources.every(r => r.bindings[0].reason && isMessage(r.bindings[0].reason))).toBe(true);
+  });
+  it('keeps reason messages in sync with MCP approval and skill disable overrides', async () => {
+    await file('project/.mcp.json', { mcpServers: { approved: { command: 'node' }, disabled: { command: 'node' }, invalid: {} } });
+    await file('project/.claude/settings.json', { enabledMcpjsonServers: ['approved'], disabledMcpjsonServers: ['disabled'] });
+    const skillFile = await file('project/.agents/skills/disabled/SKILL.md', skill('disabled-skill'));
+    await file('project/.codex/config.toml', `[[skills.config]]\npath = ${JSON.stringify(skillFile)}\nenabled = false`);
+    const { snapshot } = await scanInventory({ home, project });
+    for (const [name, status, reason] of [
+      ['approved', 'available', message('reason.projectMcpApproved')],
+      ['disabled', 'disabled', message('reason.projectMcpDisabled')],
+      ['invalid', 'invalid', message('reason.mcpInvalid')],
+      ['disabled-skill', 'disabled', message('reason.skillDisabled')],
+    ] as const) {
+      expect(snapshot.resources.find(r => r.name === name)?.bindings[0]).toMatchObject({ status, reason });
+    }
+  });
+  it('reports adapter failures and nested limits with parameters rather than exception text', async () => {
+    const failure = await scanInventory({ home, adapters: [{ id: 'claude', async scan() { throw new Error('private config'); } }] });
+    expect(failure.snapshot.diagnostics[0].message).toEqual(message('scan.partialFailure'));
+    expect(JSON.stringify(failure)).not.toContain('private config');
+    await fs.mkdir(path.join(project, ...Array.from({ length: 10 }, (_, i) => `level${i}`)), { recursive: true });
+    const { snapshot } = await scanInventory({ home, project });
+    expect(snapshot.diagnostics).toHaveLength(2);
+    expect(snapshot.diagnostics.every(d => JSON.stringify(d.message) === JSON.stringify(message('scan.nestedLimit', { directories: 3000, depth: 8 })))).toBe(true);
   });
 });
 it('redacts nested auth data, URL credentials, query parameters and secret command arguments', () => {

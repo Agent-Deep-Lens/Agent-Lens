@@ -1,3 +1,4 @@
+import { InventoryError, message } from '../contracts/messages';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -9,11 +10,11 @@ export interface ScanOptions { home?: string; project?: string; roots?: Partial<
 export async function scanInventory(options: ScanOptions = {}): Promise<{ snapshot: Snapshot; watched: string[] }> {
   const start = Date.now(); const home = options.home ?? os.homedir();
   const project = options.project ? await canonical(options.project) : undefined;
-  if (project && !(await fs.stat(project)).isDirectory()) throw new Error('请选择有效的项目目录');
+  if (project && !(await fs.stat(project)).isDirectory()) throw new InventoryError(message('errors.invalidProject'));
   const results = await Promise.all((options.adapters ?? adapters).map(async adapter => {
     const root = options.roots?.[adapter.id] ?? (!options.home ? (adapter.id === 'codex' ? process.env.CODEX_HOME : process.env.CLAUDE_CONFIG_DIR) : undefined) ?? path.join(home, `.${adapter.id}`);
     const ctx = new ScanContext(adapter.id, home, root, project);
-    try { await adapter.scan(ctx); } catch { ctx.diagnostic(root, '扫描部分失败，请检查目录权限或配置结构'); }
+    try { await adapter.scan(ctx); } catch { ctx.diagnostic(root, message('scan.partialFailure')); }
     const executableFound = (await Promise.all((process.env.PATH ?? '').split(path.delimiter).map(dir => exists(path.join(dir, adapter.id + (process.platform === 'win32' ? '.exe' : '')))))).some(Boolean);
     return { ctx, environment: { id: adapter.id, name: adapter.id === 'claude' ? 'Claude Code' : 'Codex', configFound: await exists(root) || ctx.resources.length > 0, executableFound } };
   }));

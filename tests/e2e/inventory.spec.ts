@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+test.use({ locale: 'zh-CN' });
 test('selecting a mixed project discovers both agents without an agent selection', async ({ page }) => {
   const project = await fs.mkdtemp(path.join(os.tmpdir(), 'atm-ui-'));
   try {

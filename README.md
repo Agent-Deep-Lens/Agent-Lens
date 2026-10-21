@@ -34,6 +34,7 @@ GitHub Actions **仅手动触发**，默认只构建，显式开启 `publish` �
 - 插件组件下钻、指令内容与脱敏配置预览、来源路径、复制路径。
 - 共享真实文件合并，保留每个 Agent 的独立绑定；同名不同文件不合并。
 - Web 文件夹浏览器、桌面原生目录选择、最近项目、浅色 / 深色外观。
+- 界面支持简体中文和英文，在设置中选择「跟随系统 / 简体中文 / English」，即时切换并保存在本机，离线可用。
 - 首次打开、切换项目、重新激活时扫描，保留手动刷新、错误隔离、键盘搜索及列表方向键。
 - 仅本地读取，不启动 MCP、执行技能脚本或修改 Agent 配置。
 
@@ -70,9 +71,18 @@ packages/contracts/       资源、绑定、快照、接口类型
 packages/core/            解析工具、扫描编排、按需扫描服务
 packages/adapters/        Claude / Codex 发现与状态规则
 packages/local-server/    回环地址 HTTP API
+packages/i18n/            本地中英文词典、语言解析与共享配置
 ```
 
 增加宿主时实现 `AgentAdapter` 并注册到 `packages/adapters/index.ts`；目前 Agent ID 联合类型需要同步扩展。适配器分别扫描，单个适配器失败不会中止另一种 Agent 的结果。
+
+界面语言默认跟随客户端系统语言（中文映射为简体中文，其他语言回退到英文），手动选择优先，偏好以 `atm.locale` 保存在当前客户端的 localStorage。跟随系统模式保存的是模式本身，系统语言变化或下次启动时会重新解析；Web 与桌面各自保存偏好。词典静态打包，无在线翻译或远程词典请求。新增文案时同步更新 `packages/i18n/locales/en.ts` 与 `zh-CN.ts`，使用语义化 key；计数使用 `count` 和复数条目。
+
+已覆盖界面、分组标签、应用自定义目录弹窗标题、扫描诊断、绑定原因及后端错误消息。资源名称、用户描述、正文与路径保留原文，原生文件选择器的系统按钮由操作系统管理。
+
+扫描结果中的 `Diagnostic.message` 与 `Binding.reason` 使用 `{ code, params }`，界面在渲染时翻译；切换语言不会重新扫描，也不会重试失败请求。消息码及参数类型定义在 `packages/contracts/messages.ts`，词典使用 `messages.<code>`。新增消息需同时更新消息定义和中英文词典；兼容旧快照或外部适配器的纯文本消息，未知消息码使用本地化兜底提示。
+
+HTTP 错误返回 `{ error: { code, params } }`；桌面 preload 返回 `{ ok: true, value }` 或 `{ ok: false, error }`，由渲染端客户端解包，避免 Electron 丢失异常自定义字段。原始系统、解析器和 IPC 异常不会直接展示，常见路径与权限错误映射为稳定消息码。
 
 ## 验证
 

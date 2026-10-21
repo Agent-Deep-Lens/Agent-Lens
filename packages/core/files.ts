@@ -1,3 +1,4 @@
+import { InventoryError, message } from '../contracts/messages';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -13,7 +14,7 @@ export async function canonical(p: string) { try { return await fs.realpath(p); 
 export async function entries(p: string) { try { return await fs.readdir(p, { withFileTypes: true }); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return []; throw e; } }
 export async function readText(p: string) {
   const stat = await fs.stat(p);
-  if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('文件不可读取或超过 1 MB 限制');
+  if (!stat.isFile() || stat.size > 1024 * 1024) throw new InventoryError(message('errors.fileUnreadable', { limitMB: 1 }));
   return fs.readFile(p, 'utf8');
 }
 export function parseDocument(text: string) {

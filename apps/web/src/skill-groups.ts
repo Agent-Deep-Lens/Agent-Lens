@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type { AgentId, Binding, Resource } from '../../../packages/contracts/index';
 export interface SkillGroup {
   id: string;
@@ -14,7 +15,7 @@ export function matchesBinding(binding: Binding, filters: SkillFilters) {
     && (filters.scope === 'all' || binding.scope === filters.scope)
     && (filters.status === 'all' || binding.status === filters.status);
 }
-export function groupSkills(skills: Resource[], inventory: Resource[], filters: SkillFilters): SkillGroup[] {
+export function groupSkills(skills: Resource[], inventory: Resource[], filters: SkillFilters, t: TFunction): SkillGroup[] {
   const plugins = new Map(inventory.filter(r => r.kind === 'plugin').map(r => [r.id, r]));
   const groups = new Map<string, SkillGroup>();
   for (const resource of skills) {
@@ -27,8 +28,8 @@ export function groupSkills(skills: Resource[], inventory: Resource[], filters: 
       let group = groups.get(key);
       if (!group) {
         group = { id: key, type, plugin, agents: [], resources: [],
-          name: type === 'plugin' ? plugin?.name ?? '未识别插件' : type === 'project' ? `项目内定义 · ${projectRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? '当前项目'}` : type === 'system' ? '系统内置' : '全局独立技能',
-          description: type === 'plugin' ? plugin?.description ?? '此插件提供的技能' : type === 'project' ? projectRoot : type === 'system' ? 'Agent 自带的技能' : '用户技能目录中的独立定义',
+          name: type === 'plugin' ? plugin?.name ?? t('groups.unknownPlugin') : type === 'project' ? t('groups.project', { name: projectRoot.split(/[\\/]/).filter(Boolean).at(-1) ?? t('groups.currentProject') }) : type === 'system' ? t('groups.system') : t('groups.user'),
+          description: type === 'plugin' ? plugin?.description ?? t('groups.pluginDescription') : type === 'project' ? projectRoot : type === 'system' ? t('groups.systemDescription') : t('groups.userDescription'),
         };
         groups.set(key, group);
       }

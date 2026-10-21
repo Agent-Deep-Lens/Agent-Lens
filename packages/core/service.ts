@@ -1,3 +1,4 @@
+import { InventoryError, message } from '../contracts/messages';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -24,7 +25,7 @@ export class InventoryService {
     const home = this.options.home ?? os.homedir();
     const full = input?.startsWith('~') ? path.join(home, input.slice(1)) : input ?? home;
     const dir = await canonical(full);
-    if (!(await fs.stat(dir)).isDirectory()) throw new Error('路径不是文件夹');
+    if (!(await fs.stat(dir)).isDirectory()) throw new InventoryError(message('errors.notDirectory'));
     const listing = await entries(dir);
     const directories = (await Promise.all(listing.filter(e => !e.name.startsWith('.')).map(async e => {
       const p = path.join(dir, e.name);
