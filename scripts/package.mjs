@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { parseArgs } from 'node:util';
 import { build, Platform, Arch } from 'electron-builder';
 import YAML from 'yaml';
-import { currentTarget, outputDirectory, assetName, describeAsset, git, readJSON, writeJSON, run, validateVersion } from './release-lib.mjs';
+import { currentTarget, outputDirectory, assetName, describeAsset, git, readJSON, writeJSON, run, validateVersion, configureSigningEnvironment } from './release-lib.mjs';
 
 const require = createRequire(import.meta.url);
 const args = process.argv.slice(2).filter(arg => arg !== '--');
@@ -14,6 +14,7 @@ const pkg = await readJSON('package.json');
 validateVersion(pkg.version);
 const output = outputDirectory(pkg.version, target);
 const signed = process.env.AGENT_LENS_SIGN === 'true' && target.platform !== 'linux';
+configureSigningEnvironment(process.env, signed);
 if (signed) {
   const required = target.platform === 'mac'
     ? ['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID']
@@ -46,6 +47,9 @@ await writeJSON(path.join(stage, 'build-info.json'), info);
 await fs.rm(output, { recursive: true, force: true });
 
 const config = YAML.parse(await fs.readFile('electron-builder.yml', 'utf8'));
+// Linux targets expand ${arch} to x86_64 (AppImage) or amd64 (deb). Keep our
+// public filenames consistent with the target IDs used in release manifests.
+config.artifactName = config.artifactName.replaceAll('${arch}', target.arch);
 config.directories.output = output;
 config.electronVersion = info.electron;
 // All runtime dependencies are already bundled. Returning false also prevents

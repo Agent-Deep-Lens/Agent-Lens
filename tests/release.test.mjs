@@ -6,11 +6,23 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import YAML from 'yaml';
-import { targets, selectTargets, validateRelease, validateVersion, assetName, describeAsset, writeJSON, assembleManifest, verifyDirectory, verifyChecksums } from '../scripts/release-lib.mjs';
+import { targets, selectTargets, validateRelease, validateVersion, assetName, describeAsset, writeJSON, assembleManifest, verifyDirectory, verifyChecksums, configureSigningEnvironment } from '../scripts/release-lib.mjs';
 
 const commit = 'a'.repeat(40);
 const version = '0.1.0';
 const release = { version, ref: 'v0.1.0', selection: 'all', publish: true, prerelease: true };
+
+test('build-only removes empty CI and inherited signing credentials', () => {
+  const env = { CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: 'local.pfx', APPLE_ID: 'local-account', CSC_NAME: 'local identity', PATH: '/tools' };
+  configureSigningEnvironment(env, false);
+  assert.deepEqual(env, { PATH: '/tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+});
+
+test('signing keeps supplied credentials and removes empty unused inputs', () => {
+  const env = { CSC_LINK: 'certificate.p12', CSC_KEY_PASSWORD: 'password', APPLE_TEAM_ID: 'team', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' };
+  configureSigningEnvironment(env, true);
+  assert.deepEqual(env, { CSC_LINK: 'certificate.p12', CSC_KEY_PASSWORD: 'password', APPLE_TEAM_ID: 'team' });
+});
 
 async function fixture(t, selected = targets) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-lens-release-'));

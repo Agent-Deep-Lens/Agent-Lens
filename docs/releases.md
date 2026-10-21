@@ -44,7 +44,7 @@ pnpm run dist
 
 | 输入 | 默认 | 含义 |
 | --- | --- | --- |
-| `ref` | `main` | 构建源码的 branch、Tag 或完整 commit；所有任务锁定为同一 SHA |
+| `ref` | `main` | 构建源码的 branch、Tag 或完整 40 位 commit SHA（不支持短 SHA）；所有任务锁定为同一 SHA |
 | `platforms` | `all` | `all`、`mac-arm64`、`mac-x64`、`win-x64`、`linux-x64` |
 | `publish` | `false` | 是否将验证完成的完整产物发布至 GitHub Releases |
 | `prerelease` | `true` | 发布为预发布；仅构建时忽略 |

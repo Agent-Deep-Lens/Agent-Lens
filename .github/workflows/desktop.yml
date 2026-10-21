@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Source branch, tag or commit (publishing requires v<package version>)
+        description: Source branch, tag or full commit SHA (publishing requires v<package version>)
         type: string
         required: true
         default: main

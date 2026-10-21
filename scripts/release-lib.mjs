@@ -23,6 +23,27 @@ export function currentTarget(arch = process.arch) {
   return selectTargets(`${platform}-${arch}`)[0];
 }
 
+export function configureSigningEnvironment(env, enabled) {
+  // GitHub materializes an absent secret as an empty environment variable.
+  // electron-builder treats even CSC_LINK='' as a certificate path. Remove all
+  // signing inputs in build-only mode, including inherited local credentials.
+  const keys = [
+    'CSC_LINK', 'CSC_KEY_PASSWORD', 'CSC_NAME', 'CSC_KEYCHAIN',
+    'CSC_INSTALLER_LINK', 'CSC_INSTALLER_KEY_PASSWORD',
+    'WIN_CSC_LINK', 'WIN_CSC_KEY_PASSWORD',
+    'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID',
+    'APPLE_API_KEY', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER',
+    'APPLE_KEYCHAIN', 'APPLE_KEYCHAIN_PROFILE',
+  ];
+  if (!enabled) {
+    for (const key of keys) delete env[key];
+    env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
+  } else {
+    // An unused platform's empty certificate must not be resolved as cwd either.
+    for (const key of keys) if (env[key] === '') delete env[key];
+  }
+}
+
 export function validateVersion(version) {
   // Keep the release convention intentionally narrow and sortable.
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.(0|[1-9]\d*))?$/.test(version)) {
