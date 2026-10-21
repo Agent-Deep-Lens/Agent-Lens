@@ -26,8 +26,9 @@ describe('mixed Agent inventory', () => {
     const target = await file('shared/review/SKILL.md', skill('shared'));
     await fs.mkdir(path.join(home, '.claude/skills'), { recursive: true });
     await fs.mkdir(path.join(home, '.agents/skills'), { recursive: true });
-    await fs.symlink(path.dirname(target), path.join(home, '.claude/skills/shared'));
-    await fs.symlink(path.dirname(target), path.join(home, '.agents/skills/shared'));
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    await fs.symlink(path.dirname(target), path.join(home, '.claude/skills/shared'), linkType);
+    await fs.symlink(path.dirname(target), path.join(home, '.agents/skills/shared'), linkType);
     const { snapshot } = await scanInventory({ home });
     expect(snapshot.resources.filter(r => r.name === 'shared')).toHaveLength(1);
     expect(snapshot.resources[0].bindings.map(b => b.agent).sort()).toEqual(['claude', 'codex']);

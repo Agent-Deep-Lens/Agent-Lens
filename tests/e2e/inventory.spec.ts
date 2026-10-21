@@ -12,6 +12,7 @@ test('selecting a mixed project discovers both agents without an agent selection
     }
     await page.goto('/');
     await page.getByRole('button', { name: '打开项目', exact: false }).click();
+    await expect(page.getByRole('button', { name: '选择此目录', exact: true })).toBeEnabled();
     await page.getByRole('textbox', { name: '目录路径' }).fill(project);
     await page.getByRole('button', { name: '前往', exact: true }).click();
     await expect(page.getByRole('textbox', { name: '目录路径' })).toHaveValue(await fs.realpath(project));
@@ -20,6 +21,7 @@ test('selecting a mixed project discovers both agents without an agent selection
     await expect(page.locator('.resource-row')).toHaveCount(2);
     await page.getByRole('textbox', { name: '搜索工具' }).fill('codex-fixture');
     await expect(page.locator('.resource-row')).toHaveCount(1);
+    await page.locator('.resource-row').click();
     await page.getByRole('button', { name: '指令内容', exact: true }).click();
     await expect(page.locator('.markdown')).toContainText('Inspect this project.');
   } finally { await fs.rm(project, { recursive: true, force: true }); }

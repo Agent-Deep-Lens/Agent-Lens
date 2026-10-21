@@ -4,10 +4,10 @@ Agent 配置与能力工作台，用于查看 Agent 配置的各项功能，并�
 
 ## 启动
 
-需要 Node.js 22+ 和 pnpm。
+使用 `.node-version` 指定的 Node.js 26.12.0 和 `packageManager` 指定的 pnpm 12.14.0。
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
@@ -17,11 +17,14 @@ pnpm dev
 pnpm build
 pnpm start       # 生产模式 Web
 pnpm desktop     # 本地 Electron 桌面窗口
-pnpm pack        # 生成当前平台应用目录
-pnpm dist        # 生成当前平台分发包
+pnpm run pack    # 生成当前平台应用目录（pnpm pack 是 npm tarball 命令）
+pnpm run dist    # 生成当前平台分发包，不上传
+pnpm test:desktop # 验证打包后的桌面应用及 IPC
 ```
 
-默认端口为 4317，可用 `PORT` 环境变量修改。桌面版通过 IPC 访问扫描服务，不额外开放 HTTP 端口。macOS 首版为未公证的本地开发构建；公开分发需要配置签名与公证。Windows / Linux 打包配置已提供，但需要在对应系统验证。
+默认端口为 4317，可用 `PORT` 环境变量修改。桌面版通过 IPC 访问扫描服务，不额外开放 HTTP 端口。本机构建默认使用 macOS ad-hoc 签名或 Windows 未签名模式。
+
+GitHub Actions **仅手动触发**，默认只构建，显式开启 `publish` 才发布 Release。支持 macOS arm64/x64、Windows x64、Linux x64；产物附带版本来源、发布清单和 SHA-256。正式发布要求 macOS 签名与公证、Windows 签名。操作步骤、固定版本构建和 Secrets 见 [构建与发布文档](docs/releases.md)。
 
 ## 已实现
 
@@ -76,6 +79,7 @@ packages/local-server/    回环地址 HTTP API
 ```sh
 pnpm typecheck
 pnpm test
+pnpm test:release
 pnpm build
 # 可选：安装浏览器后运行浏览器回归
 pnpm exec playwright install chromium
