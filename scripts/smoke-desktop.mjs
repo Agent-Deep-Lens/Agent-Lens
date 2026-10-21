@@ -14,7 +14,8 @@ const executable = {
   linux: path.join(output, 'linux-unpacked/agent-lens'),
 }[target.platform];
 await fs.access(executable);
-const fixture = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-lens-smoke-'));
+// Windows TEMP may use an 8.3 alias (RUNNER~1), while the scanner displays real paths.
+const fixture = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agent-lens-smoke-')));
 const project = path.join(fixture, 'project');
 await fs.mkdir(path.join(project, '.git'), { recursive: true });
 const skill = path.join(project, '.agents/skills/packaged-smoke/SKILL.md');
